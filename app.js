@@ -50,7 +50,7 @@ function cambiarModo(nuevoModo) {
   modoActual.textContent = agregando ? "Modo: agregar nodo" : "Modo: seleccionar";
   ayudaCanvas.textContent = agregando
     ? "Haz clic en el área blanca para colocar un nuevo nodo."
-    : "Haz clic y arrastra un nodo para reubicarlo.";
+    : "Arrastra para mover. Doble clic en nodo/arco para editar.";
 }
 
 function mostrarMensaje(mensaje) {
@@ -316,6 +316,40 @@ function reconstruirCaminoFloyd(nodoInicial, destino, predecesores) {
   return camino[0] === nodoInicial ? camino : null;
 }
 
+function enumerarCaminos(origen, destino) {
+  const adjacency = {};
+  nodos.forEach((n) => { adjacency[n.id] = []; });
+  arcos.forEach((a) => {
+    if (adjacency[a.origen]) {
+      adjacency[a.origen].push({ destino: a.destino, peso: a.peso });
+    }
+  });
+
+  const todos = [];
+  const LIMITE = 200;
+
+  function dfs(actual, visitados, caminoActual, pesoActual) {
+    if (todos.length >= LIMITE) return;
+    if (actual === destino) {
+      todos.push({ camino: [...caminoActual], distancia: pesoActual });
+      return;
+    }
+    const vecinos = adjacency[actual] || [];
+    for (const v of vecinos) {
+      if (visitados.has(v.destino)) continue;
+      visitados.add(v.destino);
+      caminoActual.push(v.destino);
+      dfs(v.destino, visitados, caminoActual, pesoActual + v.peso);
+      caminoActual.pop();
+      visitados.delete(v.destino);
+      if (todos.length >= LIMITE) return;
+    }
+  }
+
+  dfs(origen, new Set([origen]), [origen], 0);
+  return todos;
+}
+
 function calcularAlgoritmo() {
   if (nodos.length === 0) {
     mostrarMensaje("Agregue al menos un nodo.");
@@ -341,39 +375,47 @@ function calcularAlgoritmo() {
   }
 
   const algoritmo = cboAlgoritmo.value;
-  const caminosCalculados = [];
-  let distancia = null;
-  let camino = null;
-
-  if (algoritmo === "dijkstra") {
-    const { distancias, anteriores } = dijkstra(origen);
-    camino = reconstruirCaminoDijkstra(origen, destino, anteriores);
-    distancia = distancias[destino];
-    tituloResultados.textContent = `Resultados Dijkstra: nodo ${origen} → nodo ${destino}`;
-  } else {
-    const { distancias, predecesores } = floydWarshall();
-    camino = reconstruirCaminoFloyd(origen, destino, predecesores);
-    distancia = distancias[origen][destino];
-    tituloResultados.textContent = `Resultados Floyd-Warshall: nodo ${origen} → nodo ${destino}`;
-  }
+  const todosLosCaminos = enumerarCaminos(origen, destino);
+  const nombreAlgoritmo = algoritmo === "dijkstra" ? "Dijkstra" : "Floyd-Warshall";
 
   tablaResultados.innerHTML = "";
 
-  if (camino === null || distancia === INF) {
+  if (todosLosCaminos.length === 0) {
     mostrarMensaje(`No existe camino entre los nodos ${origen} e ${destino}.`);
-    agregarFilaResultado(destino, "No alcanzable", "No alcanzable");
-  } else {
-    caminosCalculados.push({
-      destino,
-      distancia,
-      camino
-    });
-    agregarFilaResultado(destino, distancia, camino.join(" → "));
+    agregarFilaResultado(destino, "No alcanzable", "No alcanzable", false);
+    tituloResultados.textContent = `Resultados ${nombreAlgoritmo}: nodo ${origen} → nodo ${destino}`;
+    ultimoResultado = {
+      nodoInicial: origen,
+      nodoDestino: destino,
+      caminosCalculados: [],
+      algoritmo,
+      coloresPorArco: new Map()
+    };
+    limpiarVisualizaciones("No hay caminos alcanzables para mostrar.");
+    dibujarGrafo();
+    return;
   }
+
+  todosLosCaminos.sort((a, b) => a.distancia - b.distancia);
+  const distanciaMinima = todosLosCaminos[0].distancia;
+  const caminosCalculados = todosLosCaminos.map((c) => ({
+    destino,
+    distancia: c.distancia,
+    camino: c.camino,
+    esMinimo: c.distancia === distanciaMinima
+  }));
+
+  tituloResultados.textContent = `Resultados ${nombreAlgoritmo}: nodo ${origen} → nodo ${destino} (${caminosCalculados.length} camino${caminosCalculados.length === 1 ? "" : "s"})`;
+
+  caminosCalculados.forEach((c) => {
+    agregarFilaResultado(destino, c.distancia, c.camino.join(" → "), c.esMinimo);
+  });
 
   const coloresPorArco = new Map();
   caminosCalculados.forEach((resultado, indice) => {
-    const color = COLORES_CAMINOS[indice % COLORES_CAMINOS.length];
+    const color = resultado.esMinimo
+      ? "#f59e0b"
+      : COLORES_CAMINOS[(indice + 2) % COLORES_CAMINOS.length];
     for (let i = 0; i < resultado.camino.length - 1; i++) {
       const clave = `${resultado.camino[i]}-${resultado.camino[i + 1]}`;
       if (!coloresPorArco.has(clave)) {
@@ -394,8 +436,9 @@ function calcularAlgoritmo() {
   dibujarGrafo();
 }
 
-function agregarFilaResultado(destino, distancia, camino) {
+function agregarFilaResultado(destino, distancia, camino, esMinimo = false) {
   const fila = document.createElement("tr");
+  if (esMinimo) fila.classList.add("fila-minimo");
   fila.innerHTML = `
     <td>${destino}</td>
     <td>${distancia}</td>
@@ -485,20 +528,31 @@ function crearVisualizaciones(nodoInicial, nodoDestino, caminosCalculados, algor
 
   contenedorVisualizaciones.innerHTML = "";
 
-  const resultado = caminosCalculados[0];
+  const minimo = caminosCalculados.find((c) => c.esMinimo) || caminosCalculados[0];
+  const nombreAlgoritmo = algoritmo === "dijkstra" ? "Dijkstra" : "Floyd-Warshall";
   const banner = document.createElement("div");
   banner.className = "camino-banner";
-  const nombreAlgoritmo = algoritmo === "dijkstra" ? "Dijkstra" : "Floyd-Warshall";
   banner.innerHTML = `
-    <span class="camino-banner-label">${nombreAlgoritmo}: el camino más corto del nodo ${nodoInicial} al nodo ${resultado.destino}</span>
-    <span class="camino-banner-camino">${resultado.camino.join(" → ")}</span>
-    <span class="camino-banner-distancia">Distancia total: ${resultado.distancia}</span>
+    <span class="camino-banner-label">${nombreAlgoritmo}: el camino más corto del nodo ${nodoInicial} al nodo ${minimo.destino}</span>
+    <span class="camino-banner-camino">${minimo.camino.join(" → ")}</span>
+    <span class="camino-banner-distancia">Distancia total: ${minimo.distancia}</span>
   `;
   contenedorVisualizaciones.appendChild(banner);
 
+  if (caminosCalculados.length > 1) {
+    const resumen = document.createElement("div");
+    resumen.className = "caminos-resumen";
+    resumen.innerHTML = `
+      <span class="caminos-resumen-label">Se encontraron <strong>${caminosCalculados.length}</strong> caminos posibles. Mostrando todos ordenados de menor a mayor distancia.</span>
+    `;
+    contenedorVisualizaciones.appendChild(resumen);
+  }
+
   const coloresPorArco = new Map();
   caminosCalculados.forEach((resultado, indice) => {
-    const color = COLORES_CAMINOS[indice % COLORES_CAMINOS.length];
+    const color = resultado.esMinimo
+      ? "#f59e0b"
+      : COLORES_CAMINOS[(indice + 2) % COLORES_CAMINOS.length];
     obtenerArcosDelCamino(resultado.camino).forEach((clave) => {
       if (!coloresPorArco.has(clave)) {
         coloresPorArco.set(clave, color);
@@ -507,8 +561,8 @@ function crearVisualizaciones(nodoInicial, nodoDestino, caminosCalculados, algor
   });
 
   const general = crearTarjetaVisual(
-    "Vista general de caminos mínimos",
-    `Inicio: nodo ${nodoInicial}`,
+    "Vista general de todos los caminos",
+    `Inicio: nodo ${nodoInicial} | Total: ${caminosCalculados.length}`,
     true
   );
   contenedorVisualizaciones.appendChild(general.card);
@@ -518,14 +572,15 @@ function crearVisualizaciones(nodoInicial, nodoDestino, caminosCalculados, algor
   });
 
   caminosCalculados.forEach((resultado, indice) => {
-    const color = COLORES_CAMINOS[indice % COLORES_CAMINOS.length];
+    const color = resultado.esMinimo
+      ? "#f59e0b"
+      : COLORES_CAMINOS[(indice + 2) % COLORES_CAMINOS.length];
     const arcosCamino = new Set(obtenerArcosDelCamino(resultado.camino));
-    const tarjeta = crearTarjetaVisual(
-      `Camino hacia nodo ${resultado.destino}`,
-      `Distancia: ${resultado.distancia} | ${resultado.camino.join(" → ")}`,
-      false
-    );
-
+    const etiqueta = resultado.esMinimo
+      ? `Camino #${indice + 1} (MÍNIMO)`
+      : `Camino #${indice + 1}`;
+    const subtitulo = `Distancia: ${resultado.distancia} | ${resultado.camino.join(" → ")}`;
+    const tarjeta = crearTarjetaVisual(etiqueta, subtitulo, false, resultado.esMinimo);
     contenedorVisualizaciones.appendChild(tarjeta.card);
     dibujarMiniGrafo(tarjeta.canvas, {
       arcosResaltados: arcosCamino,
@@ -543,9 +598,12 @@ function obtenerArcosDelCamino(camino) {
   return claves;
 }
 
-function crearTarjetaVisual(titulo, subtitulo, general) {
+function crearTarjetaVisual(titulo, subtitulo, general, destacado = false) {
   const card = document.createElement("article");
-  card.className = general ? "visual-card general" : "visual-card";
+  let clases = "visual-card";
+  if (general) clases += " general";
+  if (destacado) clases += " destacado";
+  card.className = clases;
 
   const encabezado = document.createElement("div");
   encabezado.className = "visual-title";
@@ -973,7 +1031,13 @@ canvas.addEventListener("mousemove", (evento) => {
     dibujarGrafo();
   } else if (modo === "seleccionar") {
     const pos = obtenerPosicionCanvas(evento);
-    canvas.style.cursor = nodoEnPosicion(pos) ? "grab" : "default";
+    if (nodoEnPosicion(pos)) {
+      canvas.style.cursor = "grab";
+    } else if (arcoEnPosicion(pos)) {
+      canvas.style.cursor = "pointer";
+    } else {
+      canvas.style.cursor = "default";
+    }
   }
 });
 
@@ -986,6 +1050,100 @@ function finalizarArrastre() {
 
 canvas.addEventListener("mouseup", finalizarArrastre);
 canvas.addEventListener("mouseleave", finalizarArrastre);
+
+function arcoEnPosicion(pos) {
+  for (let i = arcos.length - 1; i >= 0; i--) {
+    const arco = arcos[i];
+    const nodoOrigen = buscarNodo(arco.origen);
+    const nodoDestino = buscarNodo(arco.destino);
+    if (!nodoOrigen || !nodoDestino) continue;
+    if (puntoCercaDeArco(pos, nodoOrigen.posicion, nodoDestino.posicion, RADIO_NODO + 6)) {
+      return arco;
+    }
+  }
+  return null;
+}
+
+function puntoCercaDeArco(p, a, b, tolerancia) {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const longitudSq = dx * dx + dy * dy;
+  if (longitudSq === 0) return Math.hypot(p.x - a.x, p.y - a.y) <= tolerancia;
+  let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / longitudSq;
+  t = Math.max(0, Math.min(1, t));
+  const proyX = a.x + t * dx;
+  const proyY = a.y + t * dy;
+  return Math.hypot(p.x - proyX, p.y - proyY) <= tolerancia;
+}
+
+function editarNodo(nodo) {
+  const nuevoIdStr = prompt(`Editar ID del nodo (actual: ${nodo.id}). Escribe un nuevo número entero positivo:`, String(nodo.id));
+  if (nuevoIdStr === null) return;
+  const nuevoId = Number(nuevoIdStr);
+  if (!Number.isInteger(nuevoId) || nuevoId <= 0) {
+    mostrarMensaje("El ID debe ser un entero positivo.");
+    return;
+  }
+  if (nuevoId !== nodo.id && existeNodo(nuevoId)) {
+    mostrarMensaje(`Ya existe un nodo con ID ${nuevoId}.`);
+    return;
+  }
+  const idAnterior = nodo.id;
+  nodo.id = nuevoId;
+  arcos.forEach((arco) => {
+    if (arco.origen === idAnterior) arco.origen = nuevoId;
+    if (arco.destino === idAnterior) arco.destino = nuevoId;
+  });
+  ultimoResultado = null;
+  limpiarTabla("Aún no hay resultados.");
+  limpiarVisualizaciones("Calcule un algoritmo para generar los gráficos de caminos.");
+  dibujarGrafo();
+}
+
+function editarArco(arco) {
+  const nuevoPesoStr = prompt(`Editar peso del arco ${arco.origen} → ${arco.destino} (actual: ${arco.peso}). Escribe un nuevo peso:`, String(arco.peso));
+  if (nuevoPesoStr === null) return;
+  const nuevoPeso = Number(nuevoPesoStr);
+  if (!Number.isInteger(nuevoPeso) || nuevoPeso <= 0) {
+    mostrarMensaje("El peso debe ser un entero positivo.");
+    return;
+  }
+  arco.peso = nuevoPeso;
+  ultimoResultado = null;
+  limpiarTabla("Aún no hay resultados.");
+  limpiarVisualizaciones("Calcule un algoritmo para generar los gráficos de caminos.");
+  dibujarGrafo();
+}
+
+function eliminarArco(arco) {
+  const confirma = confirm(`¿Eliminar el arco ${arco.origen} → ${arco.destino} (peso ${arco.peso})?`);
+  if (!confirma) return;
+  arcos = arcos.filter((a) => a !== arco);
+  ultimoResultado = null;
+  limpiarTabla("Aún no hay resultados.");
+  limpiarVisualizaciones("Calcule un algoritmo para generar los gráficos de caminos.");
+  dibujarGrafo();
+}
+
+canvas.addEventListener("dblclick", (evento) => {
+  if (modo !== "seleccionar") return;
+  const pos = obtenerPosicionCanvas(evento);
+  const nodo = nodoEnPosicion(pos);
+  if (nodo) {
+    editarNodo(nodo);
+    return;
+  }
+  const arco = arcoEnPosicion(pos);
+  if (arco) {
+    const accion = prompt(`Arco ${arco.origen} → ${arco.destino} (peso ${arco.peso}).\nEscribe "e" para editar, "x" para eliminar:`, "e");
+    if (accion === null) return;
+    if (accion.toLowerCase() === "x") {
+      eliminarArco(arco);
+    } else if (accion.toLowerCase() === "e") {
+      editarArco(arco);
+    }
+  }
+});
 
 function manejarRedimension() {
   ajustarCanvas();
