@@ -21,6 +21,11 @@ const tituloResultados = document.getElementById("tituloResultados");
 const modoActual = document.getElementById("modoActual");
 const ayudaCanvas = document.getElementById("ayudaCanvas");
 const contenedorVisualizaciones = document.getElementById("contenedorVisualizaciones");
+const modalOverlay = document.getElementById("modalOverlay");
+const modalTitulo = document.getElementById("modalTitulo");
+const modalCuerpo = document.getElementById("modalCuerpo");
+const modalPie = document.getElementById("modalPie");
+const modalCerrar = document.getElementById("modalCerrar");
 
 const RADIO_NODO = 24;
 const INF = Number.POSITIVE_INFINITY;
@@ -50,7 +55,7 @@ function cambiarModo(nuevoModo) {
   modoActual.textContent = agregando ? "Modo: agregar nodo" : "Modo: seleccionar";
   ayudaCanvas.textContent = agregando
     ? "Haz clic en el área blanca para colocar un nuevo nodo."
-    : "Arrastra para mover. Doble clic en nodo/arco para editar.";
+    : "Arrastra para mover. Doble clic en un nodo o arco para editarlo.";
 }
 
 function mostrarMensaje(mensaje) {
@@ -1076,53 +1081,174 @@ function puntoCercaDeArco(p, a, b, tolerancia) {
   return Math.hypot(p.x - proyX, p.y - proyY) <= tolerancia;
 }
 
-function editarNodo(nodo) {
-  const nuevoIdStr = prompt(`Editar ID del nodo (actual: ${nodo.id}). Escribe un nuevo número entero positivo:`, String(nodo.id));
-  if (nuevoIdStr === null) return;
-  const nuevoId = Number(nuevoIdStr);
-  if (!Number.isInteger(nuevoId) || nuevoId <= 0) {
-    mostrarMensaje("El ID debe ser un entero positivo.");
-    return;
+function abrirModal(titulo, contenidoHTML, pieHTML) {
+  modalTitulo.textContent = titulo;
+  modalCuerpo.innerHTML = contenidoHTML;
+  modalPie.innerHTML = pieHTML;
+  modalOverlay.hidden = false;
+  const input = modalCuerpo.querySelector("input");
+  if (input) {
+    setTimeout(() => {
+      input.focus();
+      input.select();
+    }, 30);
   }
-  if (nuevoId !== nodo.id && existeNodo(nuevoId)) {
-    mostrarMensaje(`Ya existe un nodo con ID ${nuevoId}.`);
-    return;
-  }
-  const idAnterior = nodo.id;
-  nodo.id = nuevoId;
-  arcos.forEach((arco) => {
-    if (arco.origen === idAnterior) arco.origen = nuevoId;
-    if (arco.destino === idAnterior) arco.destino = nuevoId;
-  });
+}
+
+function cerrarModal() {
+  modalOverlay.hidden = true;
+  modalCuerpo.innerHTML = "";
+  modalPie.innerHTML = "";
+}
+
+function aplicarCambiosTrasEdicion() {
   ultimoResultado = null;
   limpiarTabla("Aún no hay resultados.");
   limpiarVisualizaciones("Calcule un algoritmo para generar los gráficos de caminos.");
   dibujarGrafo();
+}
+
+function editarNodo(nodo) {
+  abrirModal(
+    "Editar nodo",
+    `
+      <div class="modal-info">Vas a editar el nodo <strong>${nodo.id}</strong>. Al cambiar su ID, todos los arcos conectados se actualizarán automáticamente.</div>
+      <div class="modal-field">
+        <label for="modalInput">Nuevo ID del nodo</label>
+        <input id="modalInput" type="number" min="1" value="${nodo.id}" />
+      </div>
+      <div class="modal-error" id="modalError"></div>
+    `,
+    `
+      <button class="btn-secondary" id="modalCancelar" type="button">Cancelar</button>
+      <button class="btn-primary" id="modalAceptar" type="button">Guardar cambios</button>
+    `
+  );
+
+  const input = document.getElementById("modalInput");
+  const error = document.getElementById("modalError");
+
+  const intentar = () => {
+    error.textContent = "";
+    input.classList.remove("input-error");
+    const nuevoId = Number(input.value);
+    if (!Number.isInteger(nuevoId) || nuevoId <= 0) {
+      error.textContent = "El ID debe ser un entero positivo.";
+      input.classList.add("input-error");
+      input.focus();
+      return;
+    }
+    if (nuevoId !== nodo.id && existeNodo(nuevoId)) {
+      error.textContent = `Ya existe un nodo con ID ${nuevoId}.`;
+      input.classList.add("input-error");
+      input.focus();
+      return;
+    }
+    const idAnterior = nodo.id;
+    nodo.id = nuevoId;
+    arcos.forEach((arco) => {
+      if (arco.origen === idAnterior) arco.origen = nuevoId;
+      if (arco.destino === idAnterior) arco.destino = nuevoId;
+    });
+    cerrarModal();
+    aplicarCambiosTrasEdicion();
+  };
+
+  document.getElementById("modalAceptar").addEventListener("click", intentar);
+  document.getElementById("modalCancelar").addEventListener("click", cerrarModal);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") intentar();
+    if (e.key === "Escape") cerrarModal();
+  });
+}
+
+function menuArco(arco) {
+  abrirModal(
+    `Arco ${arco.origen} → ${arco.destino}`,
+    `
+      <div class="modal-info">Selecciona una acción para el arco con peso <strong>${arco.peso}</strong>.</div>
+      <div class="modal-opciones">
+        <button class="btn-editar" type="button">
+          <strong>Editar peso</strong>
+          <div style="font-size: 12px; font-weight: 500; color: #78716c; margin-top: 2px;">Cambiar el valor numérico</div>
+        </button>
+        <button class="btn-eliminar" type="button">
+          <strong>Eliminar arco</strong>
+          <div style="font-size: 12px; font-weight: 500; color: #78716c; margin-top: 2px;">Quitar del grafo</div>
+        </button>
+      </div>
+    `,
+    `
+      <button class="btn-secondary" id="modalCancelar" type="button">Cerrar</button>
+    `
+  );
+
+  document.querySelector(".btn-editar").addEventListener("click", () => editarArco(arco));
+  document.querySelector(".btn-eliminar").addEventListener("click", () => confirmarEliminarArco(arco));
+  document.getElementById("modalCancelar").addEventListener("click", cerrarModal);
 }
 
 function editarArco(arco) {
-  const nuevoPesoStr = prompt(`Editar peso del arco ${arco.origen} → ${arco.destino} (actual: ${arco.peso}). Escribe un nuevo peso:`, String(arco.peso));
-  if (nuevoPesoStr === null) return;
-  const nuevoPeso = Number(nuevoPesoStr);
-  if (!Number.isInteger(nuevoPeso) || nuevoPeso <= 0) {
-    mostrarMensaje("El peso debe ser un entero positivo.");
-    return;
-  }
-  arco.peso = nuevoPeso;
-  ultimoResultado = null;
-  limpiarTabla("Aún no hay resultados.");
-  limpiarVisualizaciones("Calcule un algoritmo para generar los gráficos de caminos.");
-  dibujarGrafo();
+  abrirModal(
+    `Editar arco ${arco.origen} → ${arco.destino}`,
+    `
+      <div class="modal-info">Peso actual: <strong>${arco.peso}</strong>. Ingresa un nuevo peso entero positivo.</div>
+      <div class="modal-field">
+        <label for="modalInput">Nuevo peso</label>
+        <input id="modalInput" type="number" min="1" value="${arco.peso}" />
+      </div>
+      <div class="modal-error" id="modalError"></div>
+    `,
+    `
+      <button class="btn-secondary" id="modalCancelar" type="button">Cancelar</button>
+      <button class="btn-primary" id="modalAceptar" type="button">Guardar cambios</button>
+    `
+  );
+
+  const input = document.getElementById("modalInput");
+  const error = document.getElementById("modalError");
+
+  const intentar = () => {
+    error.textContent = "";
+    input.classList.remove("input-error");
+    const nuevoPeso = Number(input.value);
+    if (!Number.isInteger(nuevoPeso) || nuevoPeso <= 0) {
+      error.textContent = "El peso debe ser un entero positivo.";
+      input.classList.add("input-error");
+      input.focus();
+      return;
+    }
+    arco.peso = nuevoPeso;
+    cerrarModal();
+    aplicarCambiosTrasEdicion();
+  };
+
+  document.getElementById("modalAceptar").addEventListener("click", intentar);
+  document.getElementById("modalCancelar").addEventListener("click", cerrarModal);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") intentar();
+    if (e.key === "Escape") cerrarModal();
+  });
 }
 
-function eliminarArco(arco) {
-  const confirma = confirm(`¿Eliminar el arco ${arco.origen} → ${arco.destino} (peso ${arco.peso})?`);
-  if (!confirma) return;
-  arcos = arcos.filter((a) => a !== arco);
-  ultimoResultado = null;
-  limpiarTabla("Aún no hay resultados.");
-  limpiarVisualizaciones("Calcule un algoritmo para generar los gráficos de caminos.");
-  dibujarGrafo();
+function confirmarEliminarArco(arco) {
+  abrirModal(
+    "Eliminar arco",
+    `
+      <div class="modal-info">¿Seguro que quieres eliminar el arco <strong>${arco.origen} → ${arco.destino}</strong> con peso <strong>${arco.peso}</strong>? Esta acción no se puede deshacer.</div>
+    `,
+    `
+      <button class="btn-secondary" id="modalCancelar" type="button">Cancelar</button>
+      <button class="btn-danger" id="modalAceptar" type="button">Eliminar</button>
+    `
+  );
+
+  document.getElementById("modalCancelar").addEventListener("click", cerrarModal);
+  document.getElementById("modalAceptar").addEventListener("click", () => {
+    arcos = arcos.filter((a) => a !== arco);
+    cerrarModal();
+    aplicarCambiosTrasEdicion();
+  });
 }
 
 canvas.addEventListener("dblclick", (evento) => {
@@ -1135,13 +1261,7 @@ canvas.addEventListener("dblclick", (evento) => {
   }
   const arco = arcoEnPosicion(pos);
   if (arco) {
-    const accion = prompt(`Arco ${arco.origen} → ${arco.destino} (peso ${arco.peso}).\nEscribe "e" para editar, "x" para eliminar:`, "e");
-    if (accion === null) return;
-    if (accion.toLowerCase() === "x") {
-      eliminarArco(arco);
-    } else if (accion.toLowerCase() === "e") {
-      editarArco(arco);
-    }
+    menuArco(arco);
   }
 });
 
@@ -1169,6 +1289,14 @@ btnLimpiar.addEventListener("click", limpiarTodo);
 btnEliminarNodo.addEventListener("click", eliminarNodo);
 btnCargarPrueba.addEventListener("click", cargarGrafoPrueba);
 window.addEventListener("resize", manejarRedimension);
+
+modalCerrar.addEventListener("click", cerrarModal);
+modalOverlay.addEventListener("click", (evento) => {
+  if (evento.target === modalOverlay) cerrarModal();
+});
+document.addEventListener("keydown", (evento) => {
+  if (evento.key === "Escape" && !modalOverlay.hidden) cerrarModal();
+});
 
 ajustarCanvas();
 cambiarModo("seleccionar");
