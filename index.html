@@ -69,6 +69,13 @@
 
         <button class="success" id="btnCalcular">Calcular</button>
         <button class="danger" id="btnLimpiar">Limpiar</button>
+
+        <div class="floyd-extra" id="floydExtra" hidden>
+          <label class="checkbox-label" for="chkMatrizCompleta">
+            <input type="checkbox" id="chkMatrizCompleta">
+            <span>Mostrar matriz completa de distancias (Floyd-Warshall)</span>
+          </label>
+        </div>
       </section>
 
       <section class="panel results-panel">
@@ -92,6 +99,21 @@
       </section>
     </aside>
   </main>
+
+  <section class="matriz-section" id="matrizSection" hidden>
+    <div class="matriz-header">
+      <div>
+        <h2>Matriz completa de distancias (Floyd-Warshall)</h2>
+        <p>Distancias mínimas entre todos los pares de nodos. Una sola ejecución del algoritmo calcula toda la tabla.</p>
+      </div>
+    </div>
+    <div class="matriz-wrap">
+      <table id="tablaMatriz">
+        <thead><tr id="matrizHeader"></tr></thead>
+        <tbody id="matrizBody"></tbody>
+      </table>
+    </div>
+  </section>
 
   <section class="visual-section">
     <div class="visual-header">

@@ -26,6 +26,12 @@ const modalTitulo = document.getElementById("modalTitulo");
 const modalCuerpo = document.getElementById("modalCuerpo");
 const modalPie = document.getElementById("modalPie");
 const modalCerrar = document.getElementById("modalCerrar");
+const floydExtra = document.getElementById("floydExtra");
+const chkMatrizCompleta = document.getElementById("chkMatrizCompleta");
+const matrizSection = document.getElementById("matrizSection");
+const tablaMatriz = document.getElementById("tablaMatriz");
+const matrizHeader = document.getElementById("matrizHeader");
+const matrizBody = document.getElementById("matrizBody");
 
 const RADIO_NODO = 24;
 const INF = Number.POSITIVE_INFINITY;
@@ -382,8 +388,16 @@ function calcularAlgoritmo() {
   const algoritmo = cboAlgoritmo.value;
   const todosLosCaminos = enumerarCaminos(origen, destino);
   const nombreAlgoritmo = algoritmo === "dijkstra" ? "Dijkstra" : "Floyd-Warshall";
+  const quiereMatriz = algoritmo === "floyd" && chkMatrizCompleta.checked;
 
   tablaResultados.innerHTML = "";
+
+  if (quiereMatriz) {
+    const { distancias } = floydWarshall();
+    renderizarMatrizFloyd(distancias, origen, destino);
+  } else {
+    ocultarMatrizFloyd();
+  }
 
   if (todosLosCaminos.length === 0) {
     mostrarMensaje(`No existe camino entre los nodos ${origen} e ${destino}.`);
@@ -494,8 +508,10 @@ function cargarGrafoPrueba() {
   ultimoResultado = null;
   txtOrigenCamino.value = "";
   txtDestinoCamino.value = "";
+  chkMatrizCompleta.checked = false;
   limpiarTabla("Aún no hay resultados.");
   limpiarVisualizaciones("Calcule un algoritmo para generar los gráficos de caminos.");
+  ocultarMatrizFloyd();
   cambiarModo("seleccionar");
   dibujarGrafo();
 }
@@ -508,10 +524,12 @@ function limpiarTodo() {
   txtPeso.value = "";
   txtOrigenCamino.value = "";
   txtDestinoCamino.value = "";
+  chkMatrizCompleta.checked = false;
   tituloResultados.textContent = "Resultados";
   ultimoResultado = null;
   limpiarTabla("Aún no hay resultados.");
   limpiarVisualizaciones("Calcule un algoritmo para generar los gráficos de caminos.");
+  ocultarMatrizFloyd();
   cambiarModo("seleccionar");
   dibujarGrafo();
 }
@@ -1095,6 +1113,59 @@ function abrirModal(titulo, contenidoHTML, pieHTML) {
   }
 }
 
+function renderizarMatrizFloyd(distancias, idOrigen = null, idDestino = null) {
+  const ids = nodos.map((n) => n.id).sort((a, b) => a - b);
+
+  matrizHeader.innerHTML = "";
+  matrizBody.innerHTML = "";
+
+  const celdaEsquina = document.createElement("th");
+  celdaEsquina.className = "esquina";
+  celdaEsquina.textContent = "i \\ j";
+  matrizHeader.appendChild(celdaEsquina);
+
+  ids.forEach((id) => {
+    const th = document.createElement("th");
+    th.textContent = id;
+    matrizHeader.appendChild(th);
+  });
+
+  ids.forEach((i) => {
+    const fila = document.createElement("tr");
+    const thFila = document.createElement("th");
+    thFila.textContent = i;
+    fila.appendChild(thFila);
+
+    ids.forEach((j) => {
+      const td = document.createElement("td");
+      const valor = distancias[i]?.[j];
+
+      if (i === j) {
+        td.classList.add("diagonal");
+        td.textContent = "0";
+      } else if (valor === undefined || valor === INF) {
+        td.classList.add("no-alcanzable");
+        td.textContent = "∞";
+      } else {
+        td.textContent = valor;
+        if (idOrigen !== null && idDestino !== null && i === idOrigen && j === idDestino) {
+          td.classList.add("destacado");
+        }
+      }
+      fila.appendChild(td);
+    });
+    matrizBody.appendChild(fila);
+  });
+
+  matrizSection.hidden = false;
+}
+
+function ocultarMatrizFloyd() {
+  matrizSection.hidden = true;
+  matrizHeader.innerHTML = "";
+  matrizBody.innerHTML = "";
+}
+
 function cerrarModal() {
   modalOverlay.hidden = true;
   modalCuerpo.innerHTML = "";
@@ -1103,8 +1174,10 @@ function cerrarModal() {
 
 function aplicarCambiosTrasEdicion() {
   ultimoResultado = null;
+  chkMatrizCompleta.checked = false;
   limpiarTabla("Aún no hay resultados.");
   limpiarVisualizaciones("Calcule un algoritmo para generar los gráficos de caminos.");
+  ocultarMatrizFloyd();
   dibujarGrafo();
 }
 
@@ -1289,6 +1362,28 @@ btnLimpiar.addEventListener("click", limpiarTodo);
 btnEliminarNodo.addEventListener("click", eliminarNodo);
 btnCargarPrueba.addEventListener("click", cargarGrafoPrueba);
 window.addEventListener("resize", manejarRedimension);
+
+cboAlgoritmo.addEventListener("change", () => {
+  const esFloyd = cboAlgoritmo.value === "floyd";
+  floydExtra.hidden = !esFloyd;
+  if (!esFloyd) {
+    chkMatrizCompleta.checked = false;
+    ocultarMatrizFloyd();
+  }
+});
+
+chkMatrizCompleta.addEventListener("change", () => {
+  if (!chkMatrizCompleta.checked) {
+    ocultarMatrizFloyd();
+  } else if (cboAlgoritmo.value === "floyd" && nodos.length > 0) {
+    const { distancias } = floydWarshall();
+    const origen = Number(txtOrigenCamino.value);
+    const destino = Number(txtDestinoCamino.value);
+    const idOrigen = Number.isInteger(origen) && existeNodo(origen) ? origen : null;
+    const idDestino = Number.isInteger(destino) && existeNodo(destino) ? destino : null;
+    renderizarMatrizFloyd(distancias, idOrigen, idDestino);
+  }
+});
 
 modalCerrar.addEventListener("click", cerrarModal);
 modalOverlay.addEventListener("click", (evento) => {
