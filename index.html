@@ -78,6 +78,15 @@
         </div>
       </section>
 
+      <section class="panel">
+        <h2>Benchmark</h2>
+        <p class="panel-desc">Genera un grafo aleatorio y compara los tiempos de ejecución de ambos algoritmos.</p>
+        <label for="txtNodosBenchmark">Cantidad de nodos</label>
+        <input id="txtNodosBenchmark" type="number" min="2" max="500" value="100" placeholder="Ej: 100">
+
+        <button class="warning" id="btnBenchmark">Ejecutar benchmark</button>
+      </section>
+
       <section class="panel results-panel">
         <h2 id="tituloResultados">Resultados</h2>
         <div class="table-wrap">
@@ -99,6 +108,18 @@
       </section>
     </aside>
   </main>
+
+  <section class="benchmark-section" id="benchmarkSection" hidden>
+    <div class="benchmark-header">
+      <div>
+        <h2>Resultados del benchmark</h2>
+        <p>Comparación de tiempos de ejecución entre Dijkstra y Floyd-Warshall sobre el mismo grafo aleatorio.</p>
+      </div>
+      <button class="btn-restore" id="btnRestaurarGrafo" type="button" hidden>Restaurar grafo anterior</button>
+    </div>
+    <div class="benchmark-grid" id="benchmarkGrid"></div>
+    <div class="benchmark-explicacion" id="benchmarkExplicacion"></div>
+  </section>
 
   <section class="matriz-section" id="matrizSection" hidden>
     <div class="matriz-header">

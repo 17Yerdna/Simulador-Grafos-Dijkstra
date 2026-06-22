@@ -831,6 +831,139 @@ tr.fila-minimo td:first-child::before {
   box-shadow: inset 0 0 0 2px #d97706;
 }
 
+.panel-desc {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.benchmark-section {
+  margin: 0 20px 20px;
+  padding: 20px;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+
+.benchmark-section[hidden] {
+  display: none;
+}
+
+.benchmark-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.benchmark-header h2 {
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.benchmark-header p {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.btn-restore {
+  height: 40px;
+  padding: 0 18px;
+  border-radius: var(--radius-sm);
+  background: var(--violet);
+  color: #fff;
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 13px;
+  border: none;
+  cursor: pointer;
+  transition: filter 0.15s, transform 0.15s;
+  box-shadow: var(--shadow-sm);
+  margin: 0;
+}
+
+.btn-restore:hover {
+  filter: brightness(0.95);
+  transform: translateY(-1px);
+}
+
+.benchmark-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+}
+
+.benchmark-card {
+  background: var(--surface-alt);
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.benchmark-card.etiqueta {
+  background: linear-gradient(135deg, #ede9fe 0%, #fef3c7 100%);
+  border-color: #c4b5fd;
+}
+
+.benchmark-card.dijkstra {
+  background: linear-gradient(135deg, #ede9fe 0%, #fff 100%);
+  border-color: #c4b5fd;
+}
+
+.benchmark-card.floyd {
+  background: linear-gradient(135deg, #fef3c7 0%, #fff 100%);
+  border-color: #fcd34d;
+}
+
+.benchmark-card .etiqueta-valor {
+  font-size: 12px;
+  font-weight: 700;
+  color: #5b21b6;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.benchmark-card .valor-grande {
+  display: block;
+  margin-top: 4px;
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--ink);
+  line-height: 1.1;
+}
+
+.benchmark-card .subtexto {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.benchmark-explicacion {
+  margin-top: 16px;
+  padding: 14px 18px;
+  background: var(--surface-alt);
+  border: 2px solid var(--line);
+  border-left: 4px solid var(--amber);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.5;
+}
+
+.benchmark-explicacion strong {
+  color: var(--amber-dark);
+}
+
 @media (max-width: 980px) {
   .app {
     grid-template-columns: 1fr;

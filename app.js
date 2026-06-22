@@ -32,6 +32,12 @@ const matrizSection = document.getElementById("matrizSection");
 const tablaMatriz = document.getElementById("tablaMatriz");
 const matrizHeader = document.getElementById("matrizHeader");
 const matrizBody = document.getElementById("matrizBody");
+const txtNodosBenchmark = document.getElementById("txtNodosBenchmark");
+const btnBenchmark = document.getElementById("btnBenchmark");
+const benchmarkSection = document.getElementById("benchmarkSection");
+const benchmarkGrid = document.getElementById("benchmarkGrid");
+const benchmarkExplicacion = document.getElementById("benchmarkExplicacion");
+const btnRestaurarGrafo = document.getElementById("btnRestaurarGrafo");
 
 const RADIO_NODO = 24;
 const INF = Number.POSITIVE_INFINITY;
@@ -530,6 +536,11 @@ function limpiarTodo() {
   limpiarTabla("Aún no hay resultados.");
   limpiarVisualizaciones("Calcule un algoritmo para generar los gráficos de caminos.");
   ocultarMatrizFloyd();
+  benchmarkSection.hidden = true;
+  benchmarkGrid.innerHTML = "";
+  benchmarkExplicacion.innerHTML = "";
+  grafoAnterior = null;
+  btnRestaurarGrafo.hidden = true;
   cambiarModo("seleccionar");
   dibujarGrafo();
 }
@@ -1166,6 +1177,144 @@ function ocultarMatrizFloyd() {
   matrizBody.innerHTML = "";
 }
 
+let grafoAnterior = null;
+
+function generarGrafoAleatorio(N, pesoMax = 20) {
+  const rect = canvas.getBoundingClientRect();
+  const ancho = rect.width;
+  const alto = rect.height;
+  const margen = RADIO_NODO + 10;
+  const minX = margen;
+  const maxX = ancho - margen;
+  const minY = margen;
+  const maxY = alto - margen;
+
+  const nuevosNodos = [];
+  const intentosMax = 200;
+  for (let i = 1; i <= N; i++) {
+    let colocado = false;
+    for (let intento = 0; intento < intentosMax && !colocado; intento++) {
+      const x = minX + Math.random() * (maxX - minX);
+      const y = minY + Math.random() * (maxY - minY);
+      let muyCerca = false;
+      for (const n of nuevosNodos) {
+        if (distancia(n.posicion, { x, y }) < RADIO_NODO * 2.2) {
+          muyCerca = true;
+          break;
+        }
+      }
+      if (!muyCerca) {
+        nuevosNodos.push({ id: i, posicion: { x, y } });
+        colocado = true;
+      }
+    }
+    if (!colocado) {
+      nuevosNodos.push({ id: i, posicion: { x: minX + Math.random() * (maxX - minX), y: minY + Math.random() * (maxY - minY) } });
+    }
+  }
+
+  const nuevosArcos = [];
+  for (let i = 0; i < N; i++) {
+    for (let j = 0; j < N; j++) {
+      if (i === j) continue;
+      if (Math.random() < 0.6) {
+        nuevosArcos.push({
+          origen: nuevosNodos[i].id,
+          destino: nuevosNodos[j].id,
+          peso: Math.floor(Math.random() * pesoMax) + 1
+        });
+      }
+    }
+  }
+
+  nodos = nuevosNodos;
+  arcos = nuevosArcos;
+  ultimoResultado = null;
+  chkMatrizCompleta.checked = false;
+  limpiarTabla("Aún no hay resultados.");
+  limpiarVisualizaciones("Calcule un algoritmo para generar los gráficos de caminos.");
+  ocultarMatrizFloyd();
+  dibujarGrafo();
+}
+
+function ejecutarBenchmark() {
+  const N = Number(txtNodosBenchmark.value);
+  if (!Number.isInteger(N) || N < 2) {
+    mostrarMensaje("La cantidad de nodos debe ser un entero mayor o igual a 2.");
+    return;
+  }
+  if (N > 500) {
+    mostrarMensaje("Por seguridad, máximo 500 nodos para el benchmark.");
+    return;
+  }
+
+  grafoAnterior = {
+    nodos: JSON.parse(JSON.stringify(nodos)),
+    arcos: JSON.parse(JSON.stringify(arcos))
+  };
+
+  generarGrafoAleatorio(N);
+  const M = arcos.length;
+
+  const t0 = performance.now();
+  dijkstra(1);
+  const t1 = performance.now();
+  const tiempoDijkstra = t1 - t0;
+
+  const t2 = performance.now();
+  floydWarshall();
+  const t3 = performance.now();
+  const tiempoFloyd = t3 - t2;
+
+  const ratio = tiempoDijkstra > 0 ? (tiempoFloyd / tiempoDijkstra) : null;
+
+  benchmarkGrid.innerHTML = "";
+  const tarjetas = [
+    { clase: "etiqueta", titulo: "Nodos", valor: N, sub: "Vértices del grafo" },
+    { clase: "etiqueta", titulo: "Arcos", valor: M, sub: "Aristas dirigidas" },
+    { clase: "dijkstra", titulo: "Dijkstra", valor: `${tiempoDijkstra.toFixed(2)} ms`, sub: "Camino mínimo desde nodo 1" },
+    { clase: "floyd", titulo: "Floyd-Warshall", valor: `${tiempoFloyd.toFixed(2)} ms`, sub: "Caminos mínimos entre todos los pares" },
+    { clase: "etiqueta", titulo: "Ratio", valor: ratio ? `${ratio.toFixed(1)}x` : "—", sub: "Floyd ÷ Dijkstra" }
+  ];
+  tarjetas.forEach((t) => {
+    const card = document.createElement("div");
+    card.className = `benchmark-card ${t.clase}`;
+    card.innerHTML = `
+      <span class="etiqueta-valor">${t.titulo}</span>
+      <span class="valor-grande">${t.valor}</span>
+      <div class="subtexto">${t.sub}</div>
+    `;
+    benchmarkGrid.appendChild(card);
+  });
+
+  let explicacion = `Sobre este grafo aleatorio de <strong>${N} nodos</strong> y <strong>${M} arcos</strong>, Dijkstra resolvió el camino mínimo desde el nodo 1 en <strong>${tiempoDijkstra.toFixed(2)} ms</strong>, mientras que Floyd-Warshall calculó la distancia entre todos los pares en <strong>${tiempoFloyd.toFixed(2)} ms</strong>. `;
+  if (ratio) {
+    explicacion += `Floyd-Warshall tardó aproximadamente <strong>${ratio.toFixed(1)} veces</strong> más. `;
+  }
+  explicacion += `Dijkstra es O(n²) porque procesa un solo origen; Floyd-Warshall es O(n³) porque prueba todos los pares. La diferencia crece a medida que aumenta la cantidad de nodos.`;
+  benchmarkExplicacion.innerHTML = explicacion;
+
+  benchmarkSection.hidden = false;
+  btnRestaurarGrafo.hidden = grafoAnterior === null || grafoAnterior.nodos.length === 0;
+
+  benchmarkSection.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function restaurarGrafoAnterior() {
+  if (!grafoAnterior) return;
+  nodos = JSON.parse(JSON.stringify(grafoAnterior.nodos));
+  arcos = JSON.parse(JSON.stringify(grafoAnterior.arcos));
+  grafoAnterior = null;
+  ultimoResultado = null;
+  chkMatrizCompleta.checked = false;
+  limpiarTabla("Aún no hay resultados.");
+  limpiarVisualizaciones("Calcule un algoritmo para generar los gráficos de caminos.");
+  ocultarMatrizFloyd();
+  btnRestaurarGrafo.hidden = true;
+  dibujarGrafo();
+  mostrarMensaje("Grafo anterior restaurado.");
+}
+
 function cerrarModal() {
   modalOverlay.hidden = true;
   modalCuerpo.innerHTML = "";
@@ -1384,6 +1533,9 @@ chkMatrizCompleta.addEventListener("change", () => {
     renderizarMatrizFloyd(distancias, idOrigen, idDestino);
   }
 });
+
+btnBenchmark.addEventListener("click", ejecutarBenchmark);
+btnRestaurarGrafo.addEventListener("click", restaurarGrafoAnterior);
 
 modalCerrar.addEventListener("click", cerrarModal);
 modalOverlay.addEventListener("click", (evento) => {
